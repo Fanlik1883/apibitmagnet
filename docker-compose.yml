@@ -1,0 +1,70 @@
+services:
+  bitmagnet:
+    image: ghcr.io/bitmagnet-io/bitmagnet:latest
+    container_name: bitmagnet
+    volumes:
+      - ./config:/root/.config/bitmagnet
+      # Mount data folder (currently only used for logs when file rotation is enabled):
+      - ./data/bitmagnet:/root/.local/share/bitmagnet
+    ports:
+      # API and WebUI port:
+      - "3333:3333"
+      # BitTorrent ports:
+      - "3334:3334/tcp"
+      - "3334:3334/udp"
+    restart: unless-stopped
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PASSWORD=postgres
+      #- TMDB_API_KEY=eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJiNzIwN2NiNzQ3NDY1NTc1MTM2Y2Q2MzlkM2FiMDY2MyIsInN1YiI6IjY1NzMxZDBmMWM2MzViMDBlMDQ4NGZhYiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.lLbcbmLyAOgcm_49wvaGW30KqODkGKltk9f23tznefA
+      - TMDB_ENABLED=false
+      - CLASSIFIER_DELETE_XXX=true    
+      - CLASSIFIER_DELETE_COMIC=true
+      - PROCESSOR_CONCURRENCY=3
+      - DHT_CRAWLER_SCALING_factor=20
+    command:
+      - worker
+      - run
+      - --keys=http_server
+      - --keys=queue_server
+      # disable the next line to run without DHT crawler
+      - --keys=dht_crawler
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: bitmagnet-postgres
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432" 
+    restart: unless-stopped
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=bitmagnet
+      - PGUSER=postgres
+    shm_size: 1g
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready
+      start_period: 20s
+      interval: 10s
+
+  adminer:
+    image: adminer:latest
+    environment: 
+       ADMINER_DEFAULT_SERVER: bitmagnet-postgres
+    restart: always
+    ports:
+      - 8089:8080
+
+  apibitmagnet:
+    build: ./API/
+    ports:
+      - "6002:5000"
+    volumes:
+    - ./API/app.py:/app/app.py
+    restart: "always"

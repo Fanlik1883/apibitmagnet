@@ -1,0 +1,4 @@
+Flask
+requests
+requests[socks]
+psycopg2
